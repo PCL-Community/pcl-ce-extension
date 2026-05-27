@@ -1,0 +1,27 @@
+# ── Rust ──
+/target/
+
+# ── .NET (examples/csharp) ──
+examples/csharp/**/bin/
+examples/csharp/**/obj/
+
+# ── IDE ──
+.vs/
+.vscode/
+.idea/
+*.sln.DotSettings.user
+*.suo
+*.user
+*.userosscache
+*.userprefs
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# ── Editor backups ──
+*~
+*.swp
+*.swo

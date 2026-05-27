@@ -1,0 +1,50 @@
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+// use tokio::sync::Mutex;
+
+/// Application runtime state shared across all modules.
+pub struct AppState {
+    /// Absolute working directory (updates, temp files, logs).
+    pub working_dir: PathBuf,
+    /// Decoded HMAC-SHA256 key bytes.
+    pub hmac_key: Vec<u8>,
+    /// Named pipe identifier (random UUID v4, or overridden via env).
+    pub pipe_id: String,
+    /// Full pipe path `\\.\pipe\pcl-ce-daemon-{pipe_id}`.
+    pub pipe_path: String,
+}
+
+impl AppState {
+    /// Create a new AppState.
+    ///
+    /// * `wd` — working directory path.
+    /// * `hmac_key_base64` — Base64-encoded HMAC key.
+    /// * `pipe_id` — pipe identifier (UUID or fixed for debug).
+    pub fn new<P: AsRef<Path>>(wd: P, hmac_key_base64: &str, pipe_id: &str) -> crate::error::Result<Self> {
+        use base64::Engine as _;
+        let hmac_key = base64::engine::general_purpose::STANDARD
+            .decode(hmac_key_base64)
+            .map_err(|_| crate::error::AppError::InvalidHmacKeyLength)?;
+
+        let working_dir = wd.as_ref().to_path_buf();
+        let pipe_id = pipe_id.to_string();
+        let pipe_path = format!(r"\\.\pipe\pcl-ce-daemon-{pipe_id}");
+
+        Ok(Self { working_dir, hmac_key, pipe_id, pipe_path })
+    }
+
+    /// Full pipe path for .NET to connect to.
+    pub fn pipe_path(&self) -> &str {
+        &self.pipe_path
+    }
+}
+
+/// Shared (thread-safe) reference to AppState.
+pub type SharedState = Arc<AppState>;
+
+impl AppState {
+    /// Wrap in Arc for sharing across tasks.
+    pub fn shared(self) -> SharedState {
+        Arc::new(self)
+    }
+}
