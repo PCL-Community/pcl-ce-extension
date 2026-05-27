@@ -36,14 +36,36 @@ async fn main() -> Result<()> {
         uuid::Uuid::new_v4().to_string()
     });
 
-    // ── Print pipe identifier to stdout (critical: .NET reads this) ──
+    // ── Generate server HMAC key (daemon → .NET auth) ──
+    use base64::Engine as _;
+    let server_hmac_key: Vec<u8> = {
+        // Derive a 32-byte key from uuid v4 random bytes + system time entropy
+        use sha2::Digest;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(uuid::Uuid::new_v4().as_bytes());
+        hasher.update(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+                .to_le_bytes(),
+        );
+        hasher.finalize().to_vec()
+    };
+    let server_key_b64 = base64::engine::general_purpose::STANDARD.encode(&server_hmac_key);
+
+    // ── Print init JSON to stdout (critical: .NET reads this) ──
     // Must flush immediately so .NET can consume it before we block.
-    println!("PIPE={pipe_id}");
+    let init_json = serde_json::json!({
+        "pipe_id": pipe_id,
+        "server_key": server_key_b64,
+    });
+    println!("{}", serde_json::to_string(&init_json).unwrap());
     std::io::stdout().flush().ok();
-    tracing::info!("Pipe ID: {pipe_id}");
+    tracing::info!("Init: pipe_id={pipe_id}, server_key={server_key_b64}");
 
     // ── Create application state ──
-    let state = AppState::new(&working_dir, &hmac_key, &pipe_id)?;
+    let state = AppState::new(&working_dir, &hmac_key, &pipe_id, server_hmac_key)?;
     tracing::info!("Working directory: {}", state.working_dir.display());
 
     // ── Validate working directory ──

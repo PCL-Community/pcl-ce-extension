@@ -14,13 +14,13 @@ pub struct RpcRequest {
     pub params: Value,
     pub id: Option<Value>,
 
-    /// HMAC-SHA256 signature: hex(SHA256(secret, method.canonical(params).nonce))
+    /// HMAC-SHA256 signature: hex(SHA256(secret, method.canonical(params).ts))
     #[serde(rename = "_hmac")]
     pub hmac: Option<String>,
 
-    /// Unique nonce to prevent replay attacks.
-    #[serde(rename = "_nonce")]
-    pub nonce: Option<String>,
+    /// Unix timestamp (ms) — used for replay protection.
+    #[serde(rename = "_ts")]
+    pub ts: Option<u64>,
 }
 
 // ============================================================
@@ -37,6 +37,12 @@ pub struct RpcResponse {
     pub error: Option<RpcErrorData>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<Value>,
+    /// HMAC-SHA256 signature of the response content.
+    #[serde(rename = "_hmac", skip_serializing_if = "Option::is_none")]
+    pub hmac: Option<String>,
+    /// Unix timestamp (ms) — used for replay protection.
+    #[serde(rename = "_ts", skip_serializing_if = "Option::is_none")]
+    pub ts: Option<u64>,
 }
 
 impl RpcResponse {
@@ -47,6 +53,8 @@ impl RpcResponse {
             result: Some(result),
             error: None,
             id,
+            hmac: None,
+            ts: None,
         }
     }
 
@@ -61,6 +69,8 @@ impl RpcResponse {
                 data: None,
             }),
             id,
+            hmac: None,
+            ts: None,
         }
     }
 
@@ -80,6 +90,8 @@ impl RpcResponse {
                 data: Some(data),
             }),
             id,
+            hmac: None,
+            ts: None,
         }
     }
 }
@@ -111,8 +123,8 @@ pub mod error_codes {
 
     /// Custom: HMAC authentication failed
     pub const AUTH_FAILED: i32 = -32001;
-    /// Custom: HMAC nonce missing
-    pub const AUTH_NONCE_MISSING: i32 = -32002;
+    /// Custom: HMAC timestamp missing
+    pub const AUTH_TS_MISSING: i32 = -32002;
     /// Custom: Resource not initialized (e.g. SMTC)
     pub const NOT_INITIALIZED: i32 = -32010;
 }
@@ -128,6 +140,12 @@ pub struct RpcNotification {
     pub jsonrpc: String,
     pub method: String,
     pub params: Value,
+    /// HMAC signature (daemon → .NET auth).
+    #[serde(rename = "_hmac", skip_serializing_if = "Option::is_none")]
+    pub hmac: Option<String>,
+    /// Unix timestamp (ms) — replay protection.
+    #[serde(rename = "_ts", skip_serializing_if = "Option::is_none")]
+    pub ts: Option<u64>,
 }
 
 impl RpcNotification {
@@ -136,6 +154,8 @@ impl RpcNotification {
             jsonrpc: "2.0".to_string(),
             method: method.into(),
             params,
+            hmac: None,
+            ts: None,
         }
     }
 }

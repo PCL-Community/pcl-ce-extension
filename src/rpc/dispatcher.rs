@@ -25,7 +25,7 @@ pub fn dispatch(
         if let Err(e) = verify_request_hmac(state, &request) {
             return match e {
                 AppError::MissingHmac => {
-                    RpcResponse::error(id, error_codes::AUTH_NONCE_MISSING, "Missing HMAC signature")
+                    RpcResponse::error(id, error_codes::AUTH_TS_MISSING, "Missing HMAC signature or timestamp")
                 }
                 AppError::HmacVerificationFailed => {
                     RpcResponse::error(id, error_codes::AUTH_FAILED, "HMAC verification failed")
@@ -92,6 +92,24 @@ pub fn dispatch(
     }
 }
 
+/// Sign a response with the daemon's server HMAC key.
+///
+/// Adds `_hmac` and `_ts` fields so .NET can verify the response
+/// came from the genuine daemon (bidirectional auth with replay protection).
+pub fn sign_response(response: &mut RpcResponse, server_key: &[u8]) {
+    use crate::auth::hmac::{canonical_json, compute_hmac_raw, now_ms};
+
+    let ts = now_ms();
+    let content = match (&response.result, &response.error) {
+        (Some(r), _) => canonical_json(r),
+        (_, Some(e)) => canonical_json(&serde_json::to_value(e).unwrap_or_default()),
+        (None, None) => "null".to_string(),
+    };
+    let payload = format!("$response.{}.{}", content, ts);
+    response.hmac = Some(compute_hmac_raw(server_key, &payload));
+    response.ts = Some(ts);
+}
+
 /// Wrap a `Result<Value>` into a JSON-RPC response.
 fn handle_result(id: Option<Value>, result: Result<Value>) -> RpcResponse {
     match result {
@@ -100,22 +118,21 @@ fn handle_result(id: Option<Value>, result: Result<Value>) -> RpcResponse {
     }
 }
 
-/// Verify the HMAC signature on a request.
+/// Verify the HMAC signature on a request (with timestamp replay check).
 fn verify_request_hmac(state: &SharedState, request: &RpcRequest) -> Result<()> {
     let hmac_val = request
         .hmac
         .as_deref()
         .ok_or(AppError::MissingHmac)?;
-    let nonce = request
-        .nonce
-        .as_deref()
+    let ts = request
+        .ts
         .ok_or(AppError::MissingHmac)?;
 
     let valid = hmac::verify_hmac(
         &state.hmac_key,
         &request.method,
         &request.params,
-        nonce,
+        ts,
         hmac_val,
     );
 

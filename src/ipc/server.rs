@@ -349,7 +349,10 @@ fn handle_requests(connection_cell: &ActiveConnectionCell, state: &SharedState) 
         tracing::debug!("Received RPC: method={}", request.method);
 
         // --- Dispatch ---
-        let response = dispatcher::dispatch(state, request, connection_cell);
+        let mut response = dispatcher::dispatch(state, request, connection_cell);
+
+        // --- Sign response (bidirectional auth) ---
+        dispatcher::sign_response(&mut response, &state.server_hmac_key);
 
         // --- Write response ---
         let resp_bytes = serde_json::to_vec(&response)?;

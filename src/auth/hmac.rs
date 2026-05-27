@@ -4,22 +4,66 @@ use serde_json::Value;
 
 type HmacSha256 = Hmac<Sha256>;
 
-/// Build the canonical HMAC payload: `method`.`canonical_params`.`nonce`
-fn build_hmac_payload(method: &str, params: &Value, nonce: &str) -> String {
-    let params_str = canonical_json(params);
-    format!("{}.{}.{}", method, params_str, nonce)
+/// Maximum allowed clock skew / replay window: 30 seconds.
+pub const TS_WINDOW_MS: u64 = 30_000;
+
+/// Get current Unix timestamp in milliseconds.
+pub fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
-/// Compute HMAC-SHA256 and return hex string.
-pub fn compute_hmac(secret: &[u8], method: &str, params: &Value, nonce: &str) -> String {
-    let payload = build_hmac_payload(method, params, nonce);
+/// Check whether a timestamp is within the allowed replay window.
+pub fn ts_in_window(ts_ms: u64) -> bool {
+    let now = now_ms();
+    let diff = if now > ts_ms { now - ts_ms } else { ts_ms - now };
+    diff <= TS_WINDOW_MS
+}
+
+// ── HMAC computation ──
+
+/// Compute HMAC-SHA256 of `method`.`canonical_params`.`ts_ms` and return hex.
+pub fn compute_hmac(secret: &[u8], method: &str, params: &Value, ts_ms: u64) -> String {
+    let payload = build_hmac_payload(method, params, ts_ms);
+    compute_hmac_raw(secret, &payload)
+}
+
+/// Compute HMAC for an arbitrary payload string (already formatted).
+pub fn compute_hmac_raw(secret: &[u8], payload: &str) -> String {
     let mut mac = HmacSha256::new_from_slice(secret)
         .expect("HMAC key length should be valid");
     mac.update(payload.as_bytes());
     hex::encode(mac.finalize().into_bytes())
 }
 
-/// Constant-time byte comparison to prevent timing side-channel attacks.
+/// Build the canonical HMAC payload: `method`.`canonical_params`.`ts_ms`
+fn build_hmac_payload(method: &str, params: &Value, ts_ms: u64) -> String {
+    let params_str = canonical_json(params);
+    format!("{}.{}.{}", method, params_str, ts_ms)
+}
+
+// ── Verification ──
+
+/// Verify a HMAC signature, including timestamp replay-window check.
+/// Returns `true` only if both timestamp and HMAC are valid.
+pub fn verify_hmac(
+    secret: &[u8],
+    method: &str,
+    params: &Value,
+    ts_ms: u64,
+    expected_hex: &str,
+) -> bool {
+    if !ts_in_window(ts_ms) {
+        return false;
+    }
+    let computed = compute_hmac(secret, method, params, ts_ms);
+    constant_time_eq(computed.as_bytes(), expected_hex.as_bytes())
+}
+
+// ── Constant-time comparison ──
+
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
@@ -31,30 +75,18 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     result == 0
 }
 
-/// Verify a HMAC signature against the request fields.
-/// Returns `true` if the signature matches (constant-time comparison).
-pub fn verify_hmac(
-    secret: &[u8],
-    method: &str,
-    params: &Value,
-    nonce: &str,
-    expected_hex: &str,
-) -> bool {
-    let computed = compute_hmac(secret, method, params, nonce);
-    constant_time_eq(computed.as_bytes(), expected_hex.as_bytes())
-}
+// ── Canonical JSON ──
 
 /// Deterministic JSON serialization with sorted keys.
 ///
 /// Produces the same output for semantically identical inputs,
 /// which is essential for HMAC verification.
-fn canonical_json(value: &Value) -> String {
+pub fn canonical_json(value: &Value) -> String {
     match value {
         Value::Null => "null".to_string(),
         Value::Bool(b) => b.to_string(),
         Value::Number(n) => n.to_string(),
         Value::String(s) => {
-            // Escape JSON string properly
             serde_json::to_string(s).unwrap_or_else(|_| format!("\"{}\"", s))
         }
         Value::Array(arr) => {
@@ -98,8 +130,20 @@ mod tests {
     fn test_hmac_roundtrip() {
         let secret = b"super-secret-key-32-bytes-long!!";
         let params = json!({"title": "Song", "artist": "Me"});
-        let sig = compute_hmac(secret, "smtc/setMediaInfo", &params, "nonce-1");
-        assert!(verify_hmac(secret, "smtc/setMediaInfo", &params, "nonce-1", &sig));
-        assert!(!verify_hmac(secret, "smtc/setMediaInfo", &params, "nonce-2", &sig));
+        let ts = now_ms();
+        let sig = compute_hmac(secret, "smtc/setMediaInfo", &params, ts);
+        assert!(verify_hmac(secret, "smtc/setMediaInfo", &params, ts, &sig));
+        // Different ts → different sig → fails
+        assert!(!verify_hmac(secret, "smtc/setMediaInfo", &params, ts + 1, &sig));
+    }
+
+    #[test]
+    fn test_ts_outside_window() {
+        let secret = b"test-key-16-bytes!";
+        let params = json!({"a": 1});
+        let old_ts = now_ms() - TS_WINDOW_MS - 1;
+        let sig = compute_hmac(secret, "m", &params, old_ts);
+        // Even with correct HMAC, stale timestamp should fail
+        assert!(!verify_hmac(secret, "m", &params, old_ts, &sig));
     }
 }
