@@ -36,7 +36,7 @@ pub fn decode_frame_header(data: &[u8]) -> Option<(u32, usize)> {
         return None;
     }
 
-    Some((payload_len, HEADER_SIZE as usize))
+    Some((payload_len, HEADER_SIZE))
 }
 
 /// Extract the payload from a complete frame.

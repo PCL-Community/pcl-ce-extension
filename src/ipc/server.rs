@@ -15,12 +15,12 @@ use super::protocol;
 
 #[cfg(windows)]
 mod pipe_sys {
-    use windows::core::PCWSTR;
     use windows::Win32::Foundation::HANDLE;
     use windows::Win32::Storage::FileSystem::{ReadFile, WriteFile};
     use windows::Win32::System::Pipes::{
         ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, NAMED_PIPE_MODE,
     };
+    use windows::core::PCWSTR;
 
     use crate::error::{AppError, Result};
 
@@ -149,7 +149,7 @@ mod pipe_sys {
     struct DropPipes;
     impl DropPipes {
         unsafe fn close(handle: HANDLE) {
-            let _ = windows::Win32::Foundation::CloseHandle(handle);
+            let _ = unsafe { windows::Win32::Foundation::CloseHandle(handle) };
         }
     }
 }
@@ -379,13 +379,13 @@ impl<'a> Read for PipeReader<'a> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.pipe
             .read(buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            .map_err(|e| std::io::Error::other(e.to_string()))
     }
 
     fn read_exact(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
         self.pipe
             .read_exact(buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+            .map_err(|e| std::io::Error::other(e.to_string()))
     }
 }
 
@@ -397,7 +397,7 @@ impl<'a> Write for PipeWriter<'a> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.pipe
             .write_all(buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
         Ok(buf.len())
     }
 

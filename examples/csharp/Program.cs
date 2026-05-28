@@ -76,7 +76,7 @@ await client.SetMediaInfoAsync(
     title: "Bohemian Rhapsody",
     artist: "Queen",
     album: "A Night at the Opera",
-    thumbnailPath: @"C:\path\to\thumbnail.jpg"
+    thumbnailPath: null
 );
 Console.WriteLine("  ✅ Media info updated");
 Console.WriteLine();
@@ -150,9 +150,9 @@ static string FindDaemonExe()
     var candidates = new[]
     {
         // Built in debug mode (from repo root)
-        Path.Combine("..", "..", "..", "..", "..", "target", "debug", "pcl-ce-extension.exe"),
+        Path.Combine("..", "..", "..", "..", "..", "target", "debug", "pcl-ce-daemon.exe"),
         // Built in release mode
-        Path.Combine("..", "..", "..", "..", "..", "target", "release", "pcl-ce-extension.exe"),
+        Path.Combine("..", "..", "..", "..", "..", "target", "release", "pcl-ce-daemon.exe"),
         // Environment variable override
         Environment.GetEnvironmentVariable("PCL_CE_DAEMON_PATH"),
     };

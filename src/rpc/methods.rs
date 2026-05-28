@@ -1,5 +1,3 @@
-/// RPC method names as constants.
-
 // ── SMTC ──
 /// Set current media information (title, artist, album, thumbnail).
 pub const SMTC_SET_MEDIA_INFO: &str = "smtc/setMediaInfo";

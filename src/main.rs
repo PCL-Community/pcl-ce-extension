@@ -4,15 +4,15 @@ use std::io::Write;
 use crate::error::{AppError, Result};
 use crate::state::AppState;
 
-mod error;
-mod state;
 mod auth;
+mod daemon;
+mod error;
 mod ipc;
 mod rpc;
 mod smtc;
+mod state;
 mod toast;
 mod update;
-mod daemon;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -31,10 +31,8 @@ async fn main() -> Result<()> {
     let working_dir = env::var("PCL_CE_WORKING_DIR")
         .map_err(|_| AppError::MissingEnvironmentVariable("PCL_CE_WORKING_DIR"))?;
 
-    // ── Pipe ID: use override or generate random UUID ──
-    let pipe_id = env::var("PCL_CE_PIPE_ID").unwrap_or_else(|_| {
-        uuid::Uuid::new_v4().to_string()
-    });
+    // ── Pipe ID: generate random UUID ──
+    let pipe_id = uuid::Uuid::new_v4().to_string();
 
     // ── Generate server HMAC key (daemon → .NET auth) ──
     use base64::Engine as _;

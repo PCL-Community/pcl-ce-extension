@@ -105,8 +105,11 @@ impl SmtcManager {
     /// Set timeline position and duration.
     pub fn set_timeline(&self, _timeline: &Timeline) -> Result<()> {
         // TODO: Update timeline via SystemMediaTransportControlsTimelineProperties
-        tracing::debug!("SMTC setTimeline: position={}s, duration={}s",
-            _timeline.position_sec, _timeline.duration_sec);
+        tracing::debug!(
+            "SMTC setTimeline: position={}s, duration={}s",
+            _timeline.position_sec,
+            _timeline.duration_sec
+        );
         Ok(())
     }
 
@@ -120,8 +123,7 @@ impl SmtcManager {
 
 /// Parse the `params` value from an RPC request into `MediaInfo`.
 pub fn parse_media_info(params: &Value) -> Result<MediaInfo> {
-    serde_json::from_value(params.clone())
-        .map_err(|e| AppError::InvalidRpcParams(e.to_string()))
+    serde_json::from_value(params.clone()).map_err(|e| AppError::InvalidRpcParams(e.to_string()))
 }
 
 /// Parse playback status from RPC params.
@@ -137,6 +139,5 @@ pub fn parse_playback_status(params: &Value) -> Result<PlaybackStatus> {
 
 /// Parse timeline from RPC params.
 pub fn parse_timeline(params: &Value) -> Result<Timeline> {
-    serde_json::from_value(params.clone())
-        .map_err(|e| AppError::InvalidRpcParams(e.to_string()))
+    serde_json::from_value(params.clone()).map_err(|e| AppError::InvalidRpcParams(e.to_string()))
 }

@@ -55,11 +55,12 @@ impl UpdateManager {
 
             // Create parent directories
             if let Some(parent) = target_path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| AppError::Update(format!(
+                std::fs::create_dir_all(parent).map_err(|e| {
+                    AppError::Update(format!(
                         "Failed to create directory {}: {e}",
                         parent.display()
-                    )))?;
+                    ))
+                })?;
             }
 
             // Decode and write file
@@ -67,11 +68,9 @@ impl UpdateManager {
                 .decode(&file.data)
                 .map_err(|e| AppError::Update(format!("Base64 decode failed: {e}")))?;
 
-            std::fs::write(&target_path, &decoded)
-                .map_err(|e| AppError::Update(format!(
-                    "Failed to write {}: {e}",
-                    target_path.display()
-                )))?;
+            std::fs::write(&target_path, &decoded).map_err(|e| {
+                AppError::Update(format!("Failed to write {}: {e}", target_path.display()))
+            })?;
 
             tracing::debug!("Update wrote: {}", target_path.display());
         }
@@ -139,6 +138,5 @@ del "%~f0"
 
 /// Parse update params from an RPC request.
 pub fn parse_update_params(params: &Value) -> Result<UpdatePackage> {
-    serde_json::from_value(params.clone())
-        .map_err(|e| AppError::InvalidRpcParams(e.to_string()))
+    serde_json::from_value(params.clone()).map_err(|e| AppError::InvalidRpcParams(e.to_string()))
 }

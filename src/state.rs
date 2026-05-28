@@ -38,7 +38,13 @@ impl AppState {
         let pipe_id = pipe_id.to_string();
         let pipe_path = format!(r"\\.\pipe\pcl-ce-daemon-{pipe_id}");
 
-        Ok(Self { working_dir, hmac_key, server_hmac_key, pipe_id, pipe_path })
+        Ok(Self {
+            working_dir,
+            hmac_key,
+            server_hmac_key,
+            pipe_id,
+            pipe_path,
+        })
     }
 
     /// Full pipe path for .NET to connect to.

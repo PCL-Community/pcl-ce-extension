@@ -45,9 +45,9 @@ impl ToastManager {
     /// Show a toast notification.
     #[cfg(windows)]
     pub fn show(&self, notification: &ToastNotification) -> Result<()> {
-        use windows::core::HSTRING;
         use windows::Data::Xml::Dom::XmlDocument;
         use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
+        use windows::core::HSTRING;
 
         let xml_str = build_toast_xml(notification);
 
@@ -91,8 +91,8 @@ impl ToastManager {
     /// Clear a toast by tag.
     #[cfg(windows)]
     pub fn clear_by_tag(&self, tag: &str) -> Result<()> {
-        use windows::core::HSTRING;
         use windows::UI::Notifications::ToastNotificationManager;
+        use windows::core::HSTRING;
 
         let history = ToastNotificationManager::History()
             .map_err(|e| AppError::Toast(format!("Failed to get history: {e}")))?;
@@ -112,8 +112,8 @@ impl ToastManager {
     /// Clear all toasts from this app.
     #[cfg(windows)]
     pub fn clear_all(&self) -> Result<()> {
-        use windows::core::HSTRING;
         use windows::UI::Notifications::ToastNotificationManager;
+        use windows::core::HSTRING;
 
         let history = ToastNotificationManager::History()
             .map_err(|e| AppError::Toast(format!("Failed to get history: {e}")))?;

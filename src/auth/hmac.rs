@@ -1,6 +1,6 @@
 use hmac::{Hmac, Mac};
-use sha2::Sha256;
 use serde_json::Value;
+use sha2::Sha256;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -18,7 +18,7 @@ pub fn now_ms() -> u64 {
 /// Check whether a timestamp is within the allowed replay window.
 pub fn ts_in_window(ts_ms: u64) -> bool {
     let now = now_ms();
-    let diff = if now > ts_ms { now - ts_ms } else { ts_ms - now };
+    let diff = now.abs_diff(ts_ms);
     diff <= TS_WINDOW_MS
 }
 
@@ -32,8 +32,7 @@ pub fn compute_hmac(secret: &[u8], method: &str, params: &Value, ts_ms: u64) -> 
 
 /// Compute HMAC for an arbitrary payload string (already formatted).
 pub fn compute_hmac_raw(secret: &[u8], payload: &str) -> String {
-    let mut mac = HmacSha256::new_from_slice(secret)
-        .expect("HMAC key length should be valid");
+    let mut mac = HmacSha256::new_from_slice(secret).expect("HMAC key length should be valid");
     mac.update(payload.as_bytes());
     hex::encode(mac.finalize().into_bytes())
 }
@@ -86,9 +85,7 @@ pub fn canonical_json(value: &Value) -> String {
         Value::Null => "null".to_string(),
         Value::Bool(b) => b.to_string(),
         Value::Number(n) => n.to_string(),
-        Value::String(s) => {
-            serde_json::to_string(s).unwrap_or_else(|_| format!("\"{}\"", s))
-        }
+        Value::String(s) => serde_json::to_string(s).unwrap_or_else(|_| format!("\"{}\"", s)),
         Value::Array(arr) => {
             let items: Vec<String> = arr.iter().map(canonical_json).collect();
             format!("[{}]", items.join(","))
@@ -99,7 +96,8 @@ pub fn canonical_json(value: &Value) -> String {
             let items: Vec<String> = keys
                 .iter()
                 .map(|k| {
-                    let k_escaped = serde_json::to_string(k).unwrap_or_else(|_| format!("\"{}\"", k));
+                    let k_escaped =
+                        serde_json::to_string(k).unwrap_or_else(|_| format!("\"{}\"", k));
                     let v = canonical_json(&obj[*k]);
                     format!("{}:{}", k_escaped, v)
                 })
@@ -134,7 +132,13 @@ mod tests {
         let sig = compute_hmac(secret, "smtc/setMediaInfo", &params, ts);
         assert!(verify_hmac(secret, "smtc/setMediaInfo", &params, ts, &sig));
         // Different ts → different sig → fails
-        assert!(!verify_hmac(secret, "smtc/setMediaInfo", &params, ts + 1, &sig));
+        assert!(!verify_hmac(
+            secret,
+            "smtc/setMediaInfo",
+            &params,
+            ts + 1,
+            &sig
+        ));
     }
 
     #[test]

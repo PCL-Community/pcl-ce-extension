@@ -2,9 +2,7 @@ use crate::auth::hmac;
 use crate::error::{AppError, Result};
 use crate::ipc::server::ActiveConnectionCell;
 use crate::rpc::methods;
-use crate::rpc::types::{
-    error_codes, RpcRequest, RpcResponse,
-};
+use crate::rpc::types::{RpcRequest, RpcResponse, error_codes};
 use crate::state::SharedState;
 use serde_json::Value;
 
@@ -21,18 +19,20 @@ pub fn dispatch(
     let id = request.id.clone();
 
     // --- 1. HMAC verification (skip for auth-free methods) ---
-    if !methods::is_auth_free_method(method) {
-        if let Err(e) = verify_request_hmac(state, &request) {
-            return match e {
-                AppError::MissingHmac => {
-                    RpcResponse::error(id, error_codes::AUTH_TS_MISSING, "Missing HMAC signature or timestamp")
-                }
-                AppError::HmacVerificationFailed => {
-                    RpcResponse::error(id, error_codes::AUTH_FAILED, "HMAC verification failed")
-                }
-                _ => RpcResponse::error(id, error_codes::AUTH_FAILED, "Authentication error"),
-            };
-        }
+    if !methods::is_auth_free_method(method)
+        && let Err(e) = verify_request_hmac(state, &request)
+    {
+        return match e {
+            AppError::MissingHmac => RpcResponse::error(
+                id,
+                error_codes::AUTH_TS_MISSING,
+                "Missing HMAC signature or timestamp",
+            ),
+            AppError::HmacVerificationFailed => {
+                RpcResponse::error(id, error_codes::AUTH_FAILED, "HMAC verification failed")
+            }
+            _ => RpcResponse::error(id, error_codes::AUTH_FAILED, "Authentication error"),
+        };
     }
 
     // --- 2. Route to handler ---
@@ -46,25 +46,15 @@ pub fn dispatch(
         methods::SMTC_SET_PLAYBACK_STATUS => {
             handle_result(id, handle_smtc_set_playback_status(state, params))
         }
-        methods::SMTC_SET_TIMELINE => {
-            handle_result(id, handle_smtc_set_timeline(state, params))
-        }
-        methods::SMTC_SET_THUMBNAIL => {
-            handle_result(id, handle_smtc_set_thumbnail(state, params))
-        }
+        methods::SMTC_SET_TIMELINE => handle_result(id, handle_smtc_set_timeline(state, params)),
+        methods::SMTC_SET_THUMBNAIL => handle_result(id, handle_smtc_set_thumbnail(state, params)),
 
         // ── Toast ──
-        methods::TOAST_SHOW => {
-            handle_result(id, handle_toast_show(state, params))
-        }
-        methods::TOAST_CLEAR => {
-            handle_result(id, handle_toast_clear(state, params))
-        }
+        methods::TOAST_SHOW => handle_result(id, handle_toast_show(state, params)),
+        methods::TOAST_CLEAR => handle_result(id, handle_toast_clear(state, params)),
 
         // ── Update ──
-        methods::UPDATE_APPLY => {
-            handle_result(id, handle_update_apply(state, params))
-        }
+        methods::UPDATE_APPLY => handle_result(id, handle_update_apply(state, params)),
         methods::UPDATE_STAGE_RESTART => {
             handle_result(id, handle_update_stage_restart(state, params))
         }
@@ -72,10 +62,7 @@ pub fn dispatch(
         // ── System ──
         methods::SYSTEM_PING => RpcResponse::success(id, Value::String("pong".to_string())),
         methods::SYSTEM_DELAY => {
-            let ms = params
-                .get("ms")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(0);
+            let ms = params.get("ms").and_then(|v| v.as_u64()).unwrap_or(0);
             std::thread::sleep(std::time::Duration::from_millis(ms));
             handle_result(id, Ok(serde_json::json!({"slept_ms": ms})))
         }
@@ -120,13 +107,8 @@ fn handle_result(id: Option<Value>, result: Result<Value>) -> RpcResponse {
 
 /// Verify the HMAC signature on a request (with timestamp replay check).
 fn verify_request_hmac(state: &SharedState, request: &RpcRequest) -> Result<()> {
-    let hmac_val = request
-        .hmac
-        .as_deref()
-        .ok_or(AppError::MissingHmac)?;
-    let ts = request
-        .ts
-        .ok_or(AppError::MissingHmac)?;
+    let hmac_val = request.hmac.as_deref().ok_or(AppError::MissingHmac)?;
+    let ts = request.ts.ok_or(AppError::MissingHmac)?;
 
     let valid = hmac::verify_hmac(
         &state.hmac_key,
@@ -170,7 +152,7 @@ fn handle_smtc_set_thumbnail(_state: &SharedState, _params: &Value) -> Result<Va
 
 fn handle_toast_show(_state: &SharedState, params: &Value) -> Result<Value> {
     let notification = crate::toast::manager::parse_toast_params(params)?;
-    let manager = crate::toast::manager::ToastManager::new("PCL.CE.Extension");
+    let manager = crate::toast::manager::ToastManager::new("PCL-Community.PCL");
     manager.show(&notification)?;
     Ok(serde_json::json!({"ok": true}))
 }
@@ -180,7 +162,7 @@ fn handle_toast_clear(_state: &SharedState, params: &Value) -> Result<Value> {
         .get("tag")
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::InvalidRpcParams("missing 'tag' field".to_string()))?;
-    let manager = crate::toast::manager::ToastManager::new("PCL.CE.Extension");
+    let manager = crate::toast::manager::ToastManager::new("PCL-Community.PCL");
     manager.clear_by_tag(tag)?;
     Ok(serde_json::json!({"ok": true}))
 }

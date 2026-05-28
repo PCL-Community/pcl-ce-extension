@@ -2,7 +2,7 @@ use std::time::Duration;
 use tokio::sync::watch;
 
 use crate::error::Result;
-use crate::ipc::server::{new_connection_cell, run_accept_loop, ActiveConnectionCell};
+use crate::ipc::server::{ActiveConnectionCell, new_connection_cell, run_accept_loop};
 use crate::smtc::manager::SmtcManager;
 use crate::state::SharedState;
 use crate::toast::manager::ToastManager;
